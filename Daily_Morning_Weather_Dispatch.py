@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 from datetime import datetime
 import time
@@ -12,8 +13,36 @@ TELEGRAM_CHANNEL_ID = "@WB_Daily_Weather"
 IMD_URL = "https://mausam.imd.gov.in/imd_latest/contents/Todaysweather_mc.php?id=28"
 
 
+def get_font(size):
+    """Dynamically loads Arial, system DejaVu font, or downloads DejaVuSans.ttf if missing."""
+    font_paths = [
+        "arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "DejaVuSans.ttf",
+    ]
+    for path in font_paths:
+        try:
+            return ImageFont.truetype(path, size)
+        except IOError:
+            continue
+
+    # Download DejaVuSans if local system fonts are unavailable
+    if not os.path.exists("DejaVuSans.ttf"):
+        try:
+            url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf"
+            r = requests.get(url, timeout=10)
+            with open("DejaVuSans.ttf", "wb") as f:
+                f.write(r.content)
+            return ImageFont.truetype("DejaVuSans.ttf", size)
+        except Exception:
+            pass
+
+    return ImageFont.load_default()
+
+
 def fetch_imd_top20_data():
-    """Scrapes and parses true minimum temperatures and correct weather parameters from IMD."""
+    """Scrapes minimum temperatures and weather descriptions from IMD Kolkata."""
     stations_data = []
     try:
         headers = {
@@ -69,7 +98,7 @@ def fetch_imd_top20_data():
     except Exception as e:
         print(f"Error fetching IMD station data: {e}")
 
-    # Fallback verified baseline dataset
+    # Baseline fallback dataset
     return [
         {"station": "Darjeeling", "temp_val": 10.4, "temp": "10.4°C", "forecast": "Partly cloudy"},
         {"station": "Kalimpong", "temp_val": 16.5, "temp": "16.5°C", "forecast": "Clear sky"},
@@ -95,7 +124,7 @@ def fetch_imd_top20_data():
 
 
 def fetch_indian_cities_aqi():
-    """Provides current AQI and pollution levels for top 10 Indian cities."""
+    """Provides AQI data for top 10 Indian cities."""
     return [
         {"city": "New Delhi", "aqi_val": 342, "aqi": "342", "status": "Very Poor", "color": "#EF4444"},
         {"city": "Patna", "aqi_val": 298, "aqi": "298", "status": "Poor", "color": "#F97316"},
@@ -110,104 +139,88 @@ def fetch_indian_cities_aqi():
     ]
 
 
-def draw_drop_shadow(draw_obj, box, radius, shadow_color="#000000", offset=8, iterations=12):
-    """Draws a smooth soft drop shadow behind UI containers."""
+def draw_drop_shadow(draw_obj, box, radius, offset=8, iterations=8):
+    """Draws a subtle drop shadow behind container boxes."""
     x0, y0, x1, y1 = box
     for i in range(iterations, 0, -1):
-        alpha_box = [
-            x0 - i + offset,
-            y0 - i + offset,
-            x1 + i + offset,
-            y1 + i + offset,
-        ]
+        alpha_box = [x0 - i + offset, y0 - i + offset, x1 + i + offset, y1 + i + offset]
         draw_obj.rounded_rectangle(alpha_box, radius=radius + i, fill=None, outline=None)
 
 
 def generate_top20_weather_card(station_data):
-    """Generates a clean, uncluttered Top-20 minimum temperature card."""
-    width, height = 1080, 1720
+    """Generates Top-20 weather card with bold, highly readable typography."""
+    width, height = 1080, 2100
     image = Image.new("RGB", (width, height), color="#05070E")
     draw = ImageDraw.Draw(image)
 
-    try:
-        title_font = ImageFont.truetype("arial.ttf", 40)
-        sub_font = ImageFont.truetype("arial.ttf", 22)
-        header_font = ImageFont.truetype("arial.ttf", 24)
-        table_font = ImageFont.truetype("arial.ttf", 22)
-        footer_font = ImageFont.truetype("arial.ttf", 18)
-    except IOError:
-        title_font = ImageFont.load_default()
-        sub_font = ImageFont.load_default()
-        header_font = ImageFont.load_default()
-        table_font = ImageFont.load_default()
-        footer_font = ImageFont.load_default()
+    # Scaled font sizes for mobile readability
+    title_font = get_font(44)
+    sub_font = get_font(28)
+    header_font = get_font(30)
+    table_font = get_font(28)
+    footer_font = get_font(24)
 
-    # Outer neon border frame
-    draw.rounded_rectangle([(20, 20), (width - 20, height - 20)], radius=24, outline="#0284c7", width=3)
+    # Outer border
+    draw.rounded_rectangle([(20, 20), (width - 20, height - 20)], radius=24, outline="#0284c7", width=4)
 
-    # Header Box
-    header_box = (50, 50, width - 50, 170)
-    draw_drop_shadow(draw, header_box, radius=16, offset=6, iterations=8)
-    draw.rounded_rectangle(header_box, radius=16, fill="#0f172a", outline="#38bdf8", width=2)
+    # Top Header Box
+    header_box = (40, 40, width - 40, 180)
+    draw_drop_shadow(draw, header_box, radius=16)
+    draw.rounded_rectangle(header_box, radius=16, fill="#0f172a", outline="#38bdf8", width=3)
     draw.text((540, 85), "PRABHU JAGATBANDHU COLLEGE", font=title_font, fill="#38BDF8", anchor="mm")
-    draw.text((540, 135), "DEPARTMENT OF SCIENCE & METEOROLOGY", font=sub_font, fill="#94A3B8", anchor="mm")
+    draw.text((540, 145), "DEPARTMENT OF SCIENCE & METEOROLOGY", font=sub_font, fill="#94A3B8", anchor="mm")
 
-    # Sub-Header Banner
-    sub_box = (50, 195, width - 50, 275)
+    # Sub-Header Title Bar
+    sub_box = (40, 205, width - 40, 295)
     draw.rounded_rectangle(sub_box, radius=12, fill="#1e3a8a", outline="#60a5fa", width=2)
-    draw.text((540, 235), "WEST BENGAL TOP-20 MINIMUM TEMPERATURES & OUTLOOK", font=header_font, fill="#F8FAFC", anchor="mm")
+    draw.text((540, 250), "WEST BENGAL TOP-20 MINIMUM TEMPERATURES & OUTLOOK", font=header_font, fill="#F8FAFC", anchor="mm")
 
     current_date = datetime.now().strftime("%d %B %Y | %A")
-    draw.text((540, 315), f"📅 Date: {current_date}  •  Source: IMD Kolkata", font=sub_font, fill="#38bdf8", anchor="mm")
+    draw.text((540, 335), f"📅 Date: {current_date}  •  Source: IMD Kolkata", font=sub_font, fill="#38bdf8", anchor="mm")
 
-    # Main Table Container
-    table_top = 360
-    table_left = 50
-    table_right = width - 50
-    row_height = 58
+    # Table Container Box
+    table_top = 380
+    table_left = 40
+    table_right = width - 40
+    row_height = 76
     table_bottom = table_top + row_height * (len(station_data) + 1)
-    
+
     table_box = (table_left, table_top, table_right, table_bottom)
-    draw_drop_shadow(draw, table_box, radius=16, offset=8, iterations=10)
-    draw.rounded_rectangle(table_box, radius=16, fill="#0b1329", outline="#1e293b", width=2)
+    draw_drop_shadow(draw, table_box, radius=16)
+    draw.rounded_rectangle(table_box, radius=16, fill="#0b1329", outline="#1e293b", width=3)
 
-    # Table Header Row
-    draw.rectangle([(table_left + 2, table_top + 2), (table_right - 2, table_top + row_height)], fill="#131f3f")
-    draw.text((105, table_top + 29), "Rank", font=header_font, fill="#38BDF8", anchor="mm")
-    draw.text((320, table_top + 29), "Station / Centre", font=header_font, fill="#38BDF8", anchor="mm")
-    draw.text((650, table_top + 29), "Min Temp", font=header_font, fill="#38BDF8", anchor="mm")
-    draw.text((875, table_top + 29), "Whole-Day Outlook", font=header_font, fill="#38BDF8", anchor="mm")
+    # Table Column Headers
+    draw.rectangle([(table_left + 3, table_top + 3), (table_right - 3, table_top + row_height)], fill="#131f3f")
+    draw.text((105, table_top + 38), "Rank", font=header_font, fill="#38BDF8", anchor="mm")
+    draw.text((320, table_top + 38), "Station / Centre", font=header_font, fill="#38BDF8", anchor="mm")
+    draw.text((640, table_top + 38), "Min Temp", font=header_font, fill="#38BDF8", anchor="mm")
+    draw.text((865, table_top + 38), "Whole-Day Outlook", font=header_font, fill="#38BDF8", anchor="mm")
 
-    draw.line([(table_left, table_top + row_height), (table_right, table_top + row_height)], fill="#1e293b", width=2)
+    draw.line([(table_left, table_top + row_height), (table_right, table_top + row_height)], fill="#1e293b", width=3)
 
-    # Table Data Rows (Clean text layout)
+    # Table Data Rows
     for i, row in enumerate(station_data):
-        y_pos = table_top + row_height * (i + 1) + 29
+        y_pos = table_top + row_height * (i + 1) + 38
 
         if i % 2 == 1:
-            draw.rectangle([(table_left + 2, y_pos - 29), (table_right - 2, y_pos + 29 - row_height + 58)], fill="#080e1d")
+            draw.rectangle([(table_left + 3, y_pos - 38), (table_right - 3, y_pos + 38 - row_height + 76)], fill="#080e1d")
 
-        # Rank badge
         if i == 0:
-            draw.rounded_rectangle([(80, y_pos - 16), (130, y_pos + 16)], radius=8, fill="#047857")
+            draw.rounded_rectangle([(75, y_pos - 22), (135, y_pos + 22)], radius=10, fill="#047857")
             draw.text((105, y_pos), "1", font=table_font, fill="#FFFFFF", anchor="mm")
+            draw.text((640, y_pos), row["temp"], font=table_font, fill="#34D399", anchor="mm")
         else:
-            draw.text((105, y_pos), f"{i+1}", font=table_font, fill="#64748b", anchor="mm")
+            draw.text((105, y_pos), f"{i+1}", font=table_font, fill="#94a3b8", anchor="mm")
+            draw.text((640, y_pos), row["temp"], font=table_font, fill="#38bdf8", anchor="mm")
 
-        draw.text((185, y_pos), row["station"], font=table_font, fill="#F8FAFC", anchor="lm")
-
-        if i == 0:
-            draw.text((650, y_pos), row["temp"], font=table_font, fill="#34D399", anchor="mm")
-        else:
-            draw.text((650, y_pos), row["temp"], font=table_font, fill="#38bdf8", anchor="mm")
-
-        draw.text((875, y_pos), row["forecast"], font=table_font, fill="#cbd5e1", anchor="mm")
+        draw.text((180, y_pos), row["station"], font=table_font, fill="#F8FAFC", anchor="lm")
+        draw.text((865, y_pos), row["forecast"], font=table_font, fill="#cbd5e1", anchor="mm")
 
         if i < len(station_data) - 1:
-            draw.line([(table_left + 15, y_pos + 29), (table_right - 15, y_pos + 29)], fill="#111827", width=1)
+            draw.line([(table_left + 15, y_pos + 38), (table_right - 15, y_pos + 38)], fill="#111827", width=1)
 
-    draw.text((540, table_bottom + 45), "Automated Meteorological Bulletin | Department of Science & Meteorology", font=footer_font, fill="#64748B", anchor="mm")
-    draw.text((540, table_bottom + 75), "Prabhu Jagatbandhu College • Daily Weather Dispatch", font=footer_font, fill="#38BDF8", anchor="mm")
+    draw.text((540, table_bottom + 45), "Automated Meteorological Bulletin | Department of Science & Meteorology", font=footer_font, fill="#94A3B8", anchor="mm")
+    draw.text((540, table_bottom + 85), "Prabhu Jagatbandhu College • Daily Weather Dispatch", font=footer_font, fill="#38BDF8", anchor="mm")
 
     img_byte_arr = BytesIO()
     image.save(img_byte_arr, format="PNG")
@@ -216,91 +229,84 @@ def generate_top20_weather_card(station_data):
 
 
 def generate_pollution_card(aqi_data):
-    """Generates Top 10 Pollution AQI card with horizontal progress bars."""
-    width, height = 1080, 1420
+    """Generates Top 10 AQI card with bold typography and progress bars."""
+    width, height = 1080, 1600
     image = Image.new("RGB", (width, height), color="#05070E")
     draw = ImageDraw.Draw(image)
 
-    try:
-        title_font = ImageFont.truetype("arial.ttf", 40)
-        sub_font = ImageFont.truetype("arial.ttf", 22)
-        header_font = ImageFont.truetype("arial.ttf", 24)
-        table_font = ImageFont.truetype("arial.ttf", 22)
-        footer_font = ImageFont.truetype("arial.ttf", 18)
-    except IOError:
-        title_font = ImageFont.load_default()
-        sub_font = ImageFont.load_default()
-        header_font = ImageFont.load_default()
-        table_font = ImageFont.load_default()
-        footer_font = ImageFont.load_default()
+    title_font = get_font(44)
+    sub_font = get_font(28)
+    header_font = get_font(30)
+    table_font = get_font(28)
+    footer_font = get_font(24)
 
-    # Outer neon border frame (Amber/Orange accent)
-    draw.rounded_rectangle([(20, 20), (width - 20, height - 20)], radius=24, outline="#ea580c", width=3)
+    # Outer border
+    draw.rounded_rectangle([(20, 20), (width - 20, height - 20)], radius=24, outline="#ea580c", width=4)
 
     # Header Box
-    header_box = (50, 50, width - 50, 170)
-    draw_drop_shadow(draw, header_box, radius=16, offset=6, iterations=8)
-    draw.rounded_rectangle(header_box, radius=16, fill="#0f172a", outline="#fb923c", width=2)
+    header_box = (40, 40, width - 40, 180)
+    draw_drop_shadow(draw, header_box, radius=16)
+    draw.rounded_rectangle(header_box, radius=16, fill="#0f172a", outline="#fb923c", width=3)
     draw.text((540, 85), "PRABHU JAGATBANDHU COLLEGE", font=title_font, fill="#38BDF8", anchor="mm")
-    draw.text((540, 135), "DEPARTMENT OF SCIENCE & METEOROLOGY", font=sub_font, fill="#94A3B8", anchor="mm")
+    draw.text((540, 145), "DEPARTMENT OF SCIENCE & METEOROLOGY", font=sub_font, fill="#94A3B8", anchor="mm")
 
     # Sub-Header Banner
-    sub_box = (50, 195, width - 50, 275)
+    sub_box = (40, 205, width - 40, 295)
     draw.rounded_rectangle(sub_box, radius=12, fill="#7c2d12", outline="#ea580c", width=2)
-    draw.text((540, 235), "AIR QUALITY INDEX (AQI) — TOP 10 INDIAN CITIES", font=header_font, fill="#F8FAFC", anchor="mm")
+    draw.text((540, 250), "AIR QUALITY INDEX (AQI) — TOP 10 INDIAN CITIES", font=header_font, fill="#F8FAFC", anchor="mm")
 
     current_date = datetime.now().strftime("%d %B %Y | %A")
-    draw.text((540, 315), f"📅 Date: {current_date}  •  National Air Quality Monitor", font=sub_font, fill="#fb923c", anchor="mm")
+    draw.text((540, 335), f"📅 Date: {current_date}  •  National Air Quality Monitor", font=sub_font, fill="#fb923c", anchor="mm")
 
-    # Main Table Container
-    table_top = 360
-    table_left = 50
-    table_right = width - 50
-    row_height = 72
+    # Table Container Box
+    table_top = 380
+    table_left = 40
+    table_right = width - 40
+    row_height = 92
     table_bottom = table_top + row_height * (len(aqi_data) + 1)
 
     table_box = (table_left, table_top, table_right, table_bottom)
-    draw_drop_shadow(draw, table_box, radius=16, offset=8, iterations=10)
-    draw.rounded_rectangle(table_box, radius=16, fill="#0b1329", outline="#1e293b", width=2)
+    draw_drop_shadow(draw, table_box, radius=16)
+    draw.rounded_rectangle(table_box, radius=16, fill="#0b1329", outline="#1e293b", width=3)
 
-    # Table Header Row
-    draw.rectangle([(table_left + 2, table_top + 2), (table_right - 2, table_top + row_height)], fill="#131f3f")
-    draw.text((105, table_top + 36), "Rank", font=header_font, fill="#38BDF8", anchor="mm")
-    draw.text((280, table_top + 36), "City", font=header_font, fill="#38BDF8", anchor="mm")
-    draw.text((530, table_top + 36), "AQI Score & Meter", font=header_font, fill="#38BDF8", anchor="mm")
-    draw.text((875, table_top + 36), "Air Quality Status", font=header_font, fill="#38BDF8", anchor="mm")
+    # Table Headers
+    draw.rectangle([(table_left + 3, table_top + 3), (table_right - 3, table_top + row_height)], fill="#131f3f")
+    draw.text((105, table_top + 46), "Rank", font=header_font, fill="#38BDF8", anchor="mm")
+    draw.text((280, table_top + 46), "City", font=header_font, fill="#38BDF8", anchor="mm")
+    draw.text((530, table_top + 46), "AQI Score & Meter", font=header_font, fill="#38BDF8", anchor="mm")
+    draw.text((865, table_top + 46), "Air Quality Status", font=header_font, fill="#38BDF8", anchor="mm")
 
-    draw.line([(table_left, table_top + row_height), (table_right, table_top + row_height)], fill="#1e293b", width=2)
+    draw.line([(table_left, table_top + row_height), (table_right, table_top + row_height)], fill="#1e293b", width=3)
 
-    # Table Data Rows with AQI Visual Progress Bars restored
+    # Table Data Rows
     for i, row in enumerate(aqi_data):
-        y_pos = table_top + row_height * (i + 1) + 36
+        y_pos = table_top + row_height * (i + 1) + 46
 
         if i % 2 == 1:
-            draw.rectangle([(table_left + 2, y_pos - 36), (table_right - 2, y_pos + 36 - row_height + 72)], fill="#080e1d")
+            draw.rectangle([(table_left + 3, y_pos - 46), (table_right - 3, y_pos + 46 - row_height + 92)], fill="#080e1d")
 
-        draw.text((105, y_pos), f"{i+1}", font=table_font, fill="#64748b", anchor="mm")
+        draw.text((105, y_pos), f"{i+1}", font=table_font, fill="#94a3b8", anchor="mm")
         draw.text((180, y_pos), row["city"], font=table_font, fill="#F8FAFC", anchor="lm")
         draw.text((435, y_pos), row["aqi"], font=table_font, fill="#F8FAFC", anchor="mm")
 
         # Visual AQI Progress Bar
         aqi_val = row["aqi_val"]
-        bar_width_max = 130
+        bar_width_max = 140
         ratio = max(0.1, min(1.0, aqi_val / 400.0))
         bar_w = int(bar_width_max * ratio)
         bar_x = 490
-        draw.rounded_rectangle([(bar_x, y_pos - 6), (bar_x + bar_width_max, y_pos + 6)], radius=3, fill="#1e293b")
-        draw.rounded_rectangle([(bar_x, y_pos - 6), (bar_x + bar_w, y_pos + 6)], radius=3, fill=row["color"])
+        draw.rounded_rectangle([(bar_x, y_pos - 8), (bar_x + bar_width_max, y_pos + 8)], radius=4, fill="#1e293b")
+        draw.rounded_rectangle([(bar_x, y_pos - 8), (bar_x + bar_w, y_pos + 8)], radius=4, fill=row["color"])
 
         # Pill Status Badge
-        draw.rounded_rectangle([(760, y_pos - 20), (990, y_pos + 20)], radius=10, fill="#111827", outline=row["color"], width=1)
-        draw.text((875, y_pos), row["status"], font=table_font, fill=row["color"], anchor="mm")
+        draw.rounded_rectangle([(730, y_pos - 26), (990, y_pos + 26)], radius=12, fill="#111827", outline=row["color"], width=2)
+        draw.text((860, y_pos), row["status"], font=table_font, fill=row["color"], anchor="mm")
 
         if i < len(aqi_data) - 1:
-            draw.line([(table_left + 15, y_pos + 36), (table_right - 15, y_pos + 36)], fill="#111827", width=1)
+            draw.line([(table_left + 15, y_pos + 46), (table_right - 15, y_pos + 46)], fill="#111827", width=1)
 
-    draw.text((540, table_bottom + 45), "Automated Environmental Bulletin | Department of Science & Meteorology", font=footer_font, fill="#64748B", anchor="mm")
-    draw.text((540, table_bottom + 75), "Prabhu Jagatbandhu College • Daily Weather & Pollution Dispatch", font=footer_font, fill="#38BDF8", anchor="mm")
+    draw.text((540, table_bottom + 45), "Automated Environmental Bulletin | Department of Science & Meteorology", font=footer_font, fill="#94A3B8", anchor="mm")
+    draw.text((540, table_bottom + 85), "Prabhu Jagatbandhu College • Daily Weather & Pollution Dispatch", font=footer_font, fill="#38BDF8", anchor="mm")
 
     img_byte_arr = BytesIO()
     image.save(img_byte_arr, format="PNG")
@@ -309,14 +315,14 @@ def generate_pollution_card(aqi_data):
 
 
 def job_post_weather():
-    """Main dispatch routine executing daily at 07:00 AM automatically."""
+    """Main dispatch routine."""
     print(f"[{datetime.now()}] Starting automated dispatch...")
     station_data = fetch_imd_top20_data()
     aqi_data = fetch_indian_cities_aqi()
 
     url_photo = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
 
-    # --- MESSAGE 1: Top-20 True Minimum Temperature & Forecast Card ---
+    # --- MESSAGE 1 ---
     img_buffer_weather = generate_top20_weather_card(station_data)
     coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "10.4°C"}
 
@@ -337,13 +343,13 @@ def job_post_weather():
 
     resp1 = requests.post(url_photo, data=data_1, files=files_1, timeout=30)
     if resp1.status_code == 200:
-        print("Successfully posted Message 1 (Top-20 Weather & Forecast Card).")
+        print("Successfully posted Message 1.")
     else:
         print(f"Failed to post Message 1: {resp1.text}")
 
     time.sleep(2)
 
-    # --- MESSAGE 2: Top 10 Indian Cities Pollution / AQI Card ---
+    # --- MESSAGE 2 ---
     img_buffer_pollution = generate_pollution_card(aqi_data)
     caption_2 = (
         f"🌫 **National Air Quality Index (AQI) Report**\n"
@@ -360,13 +366,13 @@ def job_post_weather():
 
     resp2 = requests.post(url_photo, data=data_2, files=files_2, timeout=30)
     if resp2.status_code == 200:
-        print("Successfully posted Message 2 (Top 10 Cities Pollution Card).")
+        print("Successfully posted Message 2.")
     else:
         print(f"Failed to post Message 2: {resp2.text}")
 
 
 if __name__ == "__main__":
-    print("Starting Fully Automated Weather & Pollution Dispatch System...")
+    print("Starting Automated Weather System...")
     job_post_weather()
 
     schedule.every().day.at("07:00").do(job_post_weather)
