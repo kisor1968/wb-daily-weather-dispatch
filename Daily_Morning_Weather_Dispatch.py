@@ -5,7 +5,6 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
-import schedule
 
 # --- TIMEZONE CONFIGURATION ---
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -372,11 +371,5 @@ def job_post_weather():
 
 
 if __name__ == "__main__":
-    print("Starting Automated Weather System...")
+    print("Starting Automated Weather Dispatch...")
     job_post_weather()
-
-    schedule.every().day.at("07:00").do(job_post_weather)
-
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
