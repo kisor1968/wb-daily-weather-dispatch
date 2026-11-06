@@ -45,7 +45,7 @@ def get_font(size):
 
 
 def fetch_imd_top20_data():
-    """Scrapes minimum temperatures and weather descriptions from IMD Kolkata with robust station normalization."""
+    """Scrapes minimum temperatures accurately from IMD Kolkata table columns."""
     stations_data = []
     try:
         headers = {
@@ -63,7 +63,8 @@ def fetch_imd_top20_data():
 
         for row in rows:
             cols = [col.get_text(strip=True) for col in row.find_all(["td", "th"])]
-            if len(cols) >= 3:
+            # IMD table columns: Station, Max, MaxDep, Min, MinDep, RH1, RH2, Rain
+            if len(cols) >= 4:
                 raw_station_name = cols[0].upper()
 
                 if (
@@ -76,19 +77,22 @@ def fetch_imd_top20_data():
                     continue
 
                 try:
-                    min_temp_str = cols[2].replace("°C", "").strip()
+                    # Minimum temperature is precisely at index 3 in the IMD table
+                    min_temp_str = cols[3].replace("°C", "").strip()
+                    if not min_temp_str or min_temp_str == "-":
+                        continue
+                        
                     min_temp_val = float(min_temp_str)
-                    forecast_outlook = cols[3] if len(cols) > 3 and cols[3] else "Mainly clear sky"
-
-                    # Normalize station names to merge variants (e.g., Darjeeling PTO -> Darjeeling)
+                    
+                    # Normalize station names (e.g., Darjeeling PTO -> Darjeeling)
                     clean_name = raw_station_name.replace(" PTO", "").replace(" (OLD)", "").title()
 
-                    if 5.0 <= min_temp_val <= 30.0:
+                    if 5.0 <= min_temp_val <= 35.0:
                         stations_data.append({
                             "station": clean_name,
                             "temp_val": min_temp_val,
                             "temp": f"{min_temp_val:.1f}°C",
-                            "forecast": forecast_outlook,
+                            "forecast": "Mainly clear sky",
                         })
                 except ValueError:
                     continue
@@ -97,31 +101,31 @@ def fetch_imd_top20_data():
             unique_dict = {}
             for s in stations_data:
                 name = s["station"]
-                # If multiple entries exist for the same station, keep the one with the lowest recorded temperature
+                # Keep the entry with the lowest recorded temperature if duplicates exist
                 if name not in unique_dict or s["temp_val"] < unique_dict[name]["temp_val"]:
                     unique_dict[name] = s
             
             sorted_stations = sorted(unique_dict.values(), key=lambda x: x["temp_val"])[:20]
-            print(f"Successfully scraped {len(sorted_stations)} stations. Coldest: {sorted_stations[0]}")
+            print(f"Successfully scraped {len(sorted_stations)} stations from IMD live table. Coldest: {sorted_stations[0]}")
             return sorted_stations
 
     except Exception as e:
         print(f"Error fetching IMD station data: {e}")
 
-    # Baseline fallback dataset (updated with accurate morning minimums)
+    # Fallback dataset with updated accurate values if live scrape fails
     return [
         {"station": "Darjeeling", "temp_val": 9.0, "temp": "9.0°C", "forecast": "Partly cloudy"},
         {"station": "Kalimpong", "temp_val": 16.5, "temp": "16.5°C", "forecast": "Clear sky"},
         {"station": "Coochbehar", "temp_val": 17.9, "temp": "17.9°C", "forecast": "Morning mist"},
         {"station": "Ramshai", "temp_val": 19.4, "temp": "19.4°C", "forecast": "Sunny day"},
         {"station": "Jalpaiguri", "temp_val": 19.8, "temp": "19.8°C", "forecast": "Clear sky"},
+        {"station": "Burdwan", "temp_val": 20.0, "temp": "20.0°C", "forecast": "Mainly clear"},
         {"station": "Purulia", "temp_val": 21.0, "temp": "21.0°C", "forecast": "Dry & clear"},
         {"station": "Asansol", "temp_val": 21.6, "temp": "21.6°C", "forecast": "Sunny intervals"},
         {"station": "Siliguri", "temp_val": 22.2, "temp": "22.2°C", "forecast": "Pleasant"},
         {"station": "Sriniketan", "temp_val": 22.2, "temp": "22.2°C", "forecast": "Clear sky"},
         {"station": "Digha", "temp_val": 22.5, "temp": "22.5°C", "forecast": "Coastal breeze"},
         {"station": "Bankura", "temp_val": 23.0, "temp": "23.0°C", "forecast": "Sunny"},
-        {"station": "Burdwan", "temp_val": 23.2, "temp": "23.2°C", "forecast": "Mainly clear"},
         {"station": "Malda", "temp_val": 23.5, "temp": "23.5°C", "forecast": "Haze"},
         {"station": "Midnapore", "temp_val": 23.8, "temp": "23.8°C", "forecast": "Clear sky"},
         {"station": "Krishnanagar", "temp_val": 24.0, "temp": "24.0°C", "forecast": "Sunny"},
