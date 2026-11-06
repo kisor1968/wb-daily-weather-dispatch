@@ -1,6 +1,8 @@
 import os
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+IST = timezone(timedelta(hours=5, minutes=30)) 
+current_date = datetime.now(IST).strftime("%d %B %Y | %A")
 import time
 import requests
 from bs4 import BeautifulSoup
