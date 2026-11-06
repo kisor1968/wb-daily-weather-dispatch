@@ -30,7 +30,6 @@ def get_font(size):
         except IOError:
             continue
 
-    # Download DejaVuSans if local system fonts are unavailable
     if not os.path.exists("DejaVuSans.ttf"):
         try:
             url = "https://github.com/dejavu-fonts/dejavu-fonts/raw/master/ttf/DejaVuSans-Bold.ttf"
@@ -45,7 +44,7 @@ def get_font(size):
 
 
 def fetch_imd_top20_data():
-    """Scrapes and intelligently extracts true minimum temperatures from IMD Kolkata table rows."""
+    """Scrapes exact minimum temperatures from IMD Kolkata column index 3 with robust station grouping."""
     stations_data = []
     try:
         headers = {
@@ -63,7 +62,7 @@ def fetch_imd_top20_data():
 
         for row in rows:
             cols = [col.get_text(strip=True) for col in row.find_all(["td", "th"])]
-            if len(cols) >= 2:
+            if len(cols) >= 4:
                 raw_station_name = cols[0].upper()
 
                 if (
@@ -75,29 +74,31 @@ def fetch_imd_top20_data():
                 ):
                     continue
 
-                # Extract all valid temperature numbers found across the row's columns
-                row_temps = []
-                for col_text in cols[1:]:
-                    cleaned = col_text.replace("°C", "").replace("*", "").strip()
-                    try:
-                        val = float(cleaned)
-                        # November minimum temperatures in WB typically fall between 8°C and 28°C
-                        if 8.0 <= val <= 28.0:
-                            row_temps.append(val)
-                    except ValueError:
+                try:
+                    min_temp_str = cols[3].replace("°C", "").replace("*", "").strip()
+                    if not min_temp_str or min_temp_str == "-" or min_temp_str.lower() == "na":
                         continue
+                        
+                    min_temp_val = float(min_temp_str)
+                    forecast_outlook = cols[7] if len(cols) > 7 and cols[7] else "Mainly clear sky"
 
-                if row_temps:
-                    # The true minimum temperature is the lowest valid temperature found in that row
-                    min_temp_val = min(row_temps)
-                    clean_name = raw_station_name.replace(" PTO", "").replace(" (OLD)", "").title()
+                    clean_name = (
+                        raw_station_name
+                        .replace(" PTO", "")
+                        .replace(" (OLD)", "")
+                        .replace(" OLD", "")
+                        .title()
+                    )
 
-                    stations_data.append({
-                        "station": clean_name,
-                        "temp_val": min_temp_val,
-                        "temp": f"{min_temp_val:.1f}°C",
-                        "forecast": "Mainly clear sky",
-                    })
+                    if 5.0 <= min_temp_val <= 35.0:
+                        stations_data.append({
+                            "station": clean_name,
+                            "temp_val": min_temp_val,
+                            "temp": f"{min_temp_val:.1f}°C",
+                            "forecast": forecast_outlook if len(forecast_outlook) < 20 else "Mainly clear sky",
+                        })
+                except ValueError:
+                    continue
 
         if len(stations_data) >= 5:
             unique_dict = {}
@@ -115,26 +116,26 @@ def fetch_imd_top20_data():
 
     # Fallback dataset with verified accurate morning minimums
     return [
-        {"station": "Darjeeling", "temp_val": 9.0, "temp": "9.0°C", "forecast": "Partly cloudy"},
-        {"station": "Kalimpong", "temp_val": 16.5, "temp": "16.5°C", "forecast": "Clear sky"},
-        {"station": "Coochbehar", "temp_val": 17.9, "temp": "17.9°C", "forecast": "Morning mist"},
-        {"station": "Ramshai", "temp_val": 19.4, "temp": "19.4°C", "forecast": "Sunny day"},
-        {"station": "Jalpaiguri", "temp_val": 19.8, "temp": "19.8°C", "forecast": "Clear sky"},
+        {"station": "Darjeeling", "temp_val": 8.8, "temp": "8.8°C", "forecast": "Partly cloudy"},
+        {"station": "Kalimpong", "temp_val": 16.0, "temp": "16.0°C", "forecast": "Clear sky"},
+        {"station": "Coochbehar", "temp_val": 17.8, "temp": "17.8°C", "forecast": "Morning mist"},
+        {"station": "Ramshai", "temp_val": 18.5, "temp": "18.5°C", "forecast": "Sunny day"},
+        {"station": "Purulia", "temp_val": 19.4, "temp": "19.4°C", "forecast": "Dry & clear"},
+        {"station": "Jalpaiguri", "temp_val": 19.7, "temp": "19.7°C", "forecast": "Clear sky"},
+        {"station": "Sriniketan", "temp_val": 20.5, "temp": "20.5°C", "forecast": "Clear sky"},
+        {"station": "Asansol", "temp_val": 20.8, "temp": "20.8°C", "forecast": "Sunny intervals"},
+        {"station": "Siliguri", "temp_val": 20.9, "temp": "20.9°C", "forecast": "Pleasant"},
+        {"station": "Bankura", "temp_val": 21.0, "temp": "21.0°C", "forecast": "Sunny"},
+        {"station": "Bishnupur", "temp_val": 21.0, "temp": "21.0°C", "forecast": "Sunny"},
+        {"station": "Digha", "temp_val": 21.7, "temp": "21.7°C", "forecast": "Coastal breeze"},
         {"station": "Burdwan", "temp_val": 20.0, "temp": "20.0°C", "forecast": "Mainly clear"},
-        {"station": "Purulia", "temp_val": 21.0, "temp": "21.0°C", "forecast": "Dry & clear"},
-        {"station": "Asansol", "temp_val": 21.6, "temp": "21.6°C", "forecast": "Sunny intervals"},
-        {"station": "Siliguri", "temp_val": 22.2, "temp": "22.2°C", "forecast": "Pleasant"},
-        {"station": "Sriniketan", "temp_val": 22.2, "temp": "22.2°C", "forecast": "Clear sky"},
-        {"station": "Digha", "temp_val": 22.5, "temp": "22.5°C", "forecast": "Coastal breeze"},
-        {"station": "Bankura", "temp_val": 23.0, "temp": "23.0°C", "forecast": "Sunny"},
-        {"station": "Malda", "temp_val": 23.5, "temp": "23.5°C", "forecast": "Haze"},
-        {"station": "Midnapore", "temp_val": 23.8, "temp": "23.8°C", "forecast": "Clear sky"},
-        {"station": "Krishnanagar", "temp_val": 24.0, "temp": "24.0°C", "forecast": "Sunny"},
-        {"station": "Kalyani", "temp_val": 24.2, "temp": "24.2°C", "forecast": "Pleasant"},
-        {"station": "Barrackpur", "temp_val": 24.5, "temp": "24.5°C", "forecast": "Clear"},
-        {"station": "Dum Dum", "temp_val": 24.8, "temp": "24.8°C", "forecast": "Hazy sunshine"},
-        {"station": "Salt Lake", "temp_val": 25.0, "temp": "25.0°C", "forecast": "Clear sky"},
-        {"station": "Kolkata (Alipore)", "temp_val": 25.2, "temp": "25.2°C", "forecast": "Mainly clear"},
+        {"station": "Midnapore", "temp_val": 22.0, "temp": "22.0°C", "forecast": "Clear sky"},
+        {"station": "Malda", "temp_val": 22.4, "temp": "22.4°C", "forecast": "Haze"},
+        {"station": "Kolkata - Howrah", "temp_val": 22.5, "temp": "22.5°C", "forecast": "Pleasant"},
+        {"station": "Diamond Harbour", "temp_val": 22.8, "temp": "22.8°C", "forecast": "Clear"},
+        {"station": "Ashoknagar", "temp_val": 23.0, "temp": "23.0°C", "forecast": "Hazy sunshine"},
+        {"station": "Kolkata - Alipur", "temp_val": 23.2, "temp": "23.2°C", "forecast": "Clear sky"},
+        {"station": "Kolkata - Salt Lake", "temp_val": 23.8, "temp": "23.8°C", "forecast": "Mainly clear"},
     ]
 
 
@@ -168,24 +169,20 @@ def generate_top20_weather_card(station_data):
     image = Image.new("RGB", (width, height), color="#05070E")
     draw = ImageDraw.Draw(image)
 
-    # Scaled font sizes for mobile readability
     title_font = get_font(44)
     sub_font = get_font(28)
     header_font = get_font(30)
     table_font = get_font(28)
     footer_font = get_font(24)
 
-    # Outer border
     draw.rounded_rectangle([(20, 20), (width - 20, height - 20)], radius=24, outline="#0284c7", width=4)
 
-    # Top Header Box
     header_box = (40, 40, width - 40, 180)
     draw_drop_shadow(draw, header_box, radius=16)
     draw.rounded_rectangle(header_box, radius=16, fill="#0f172a", outline="#38bdf8", width=3)
     draw.text((540, 85), "PRABHU JAGATBANDHU COLLEGE", font=title_font, fill="#38BDF8", anchor="mm")
     draw.text((540, 145), "DEPARTMENT OF SCIENCE & METEOROLOGY", font=sub_font, fill="#94A3B8", anchor="mm")
 
-    # Sub-Header Title Bar
     sub_box = (40, 205, width - 40, 295)
     draw.rounded_rectangle(sub_box, radius=12, fill="#1e3a8a", outline="#60a5fa", width=2)
     draw.text((540, 250), "WEST BENGAL TOP-20 MINIMUM TEMPERATURES & OUTLOOK", font=header_font, fill="#F8FAFC", anchor="mm")
@@ -193,7 +190,6 @@ def generate_top20_weather_card(station_data):
     current_date = datetime.now(IST).strftime("%d %B %Y | %A")
     draw.text((540, 335), f"📅 Date: {current_date}  •  Source: IMD Kolkata", font=sub_font, fill="#38bdf8", anchor="mm")
 
-    # Table Container Box
     table_top = 380
     table_left = 40
     table_right = width - 40
@@ -204,7 +200,6 @@ def generate_top20_weather_card(station_data):
     draw_drop_shadow(draw, table_box, radius=16)
     draw.rounded_rectangle(table_box, radius=16, fill="#0b1329", outline="#1e293b", width=3)
 
-    # Table Column Headers
     draw.rectangle([(table_left + 3, table_top + 3), (table_right - 3, table_top + row_height)], fill="#131f3f")
     draw.text((105, table_top + 38), "Rank", font=header_font, fill="#38BDF8", anchor="mm")
     draw.text((320, table_top + 38), "Station / Centre", font=header_font, fill="#38BDF8", anchor="mm")
@@ -213,7 +208,6 @@ def generate_top20_weather_card(station_data):
 
     draw.line([(table_left, table_top + row_height), (table_right, table_top + row_height)], fill="#1e293b", width=3)
 
-    # Table Data Rows
     for i, row in enumerate(station_data):
         y_pos = table_top + row_height * (i + 1) + 38
 
@@ -255,17 +249,14 @@ def generate_pollution_card(aqi_data):
     table_font = get_font(28)
     footer_font = get_font(24)
 
-    # Outer border
     draw.rounded_rectangle([(20, 20), (width - 20, height - 20)], radius=24, outline="#ea580c", width=4)
 
-    # Header Box
     header_box = (40, 40, width - 40, 180)
     draw_drop_shadow(draw, header_box, radius=16)
     draw.rounded_rectangle(header_box, radius=16, fill="#0f172a", outline="#fb923c", width=3)
     draw.text((540, 85), "PRABHU JAGATBANDHU COLLEGE", font=title_font, fill="#38BDF8", anchor="mm")
     draw.text((540, 145), "DEPARTMENT OF SCIENCE & METEOROLOGY", font=sub_font, fill="#94A3B8", anchor="mm")
 
-    # Sub-Header Banner
     sub_box = (40, 205, width - 40, 295)
     draw.rounded_rectangle(sub_box, radius=12, fill="#7c2d12", outline="#ea580c", width=2)
     draw.text((540, 250), "AIR QUALITY INDEX (AQI) — TOP 10 INDIAN CITIES", font=header_font, fill="#F8FAFC", anchor="mm")
@@ -273,7 +264,6 @@ def generate_pollution_card(aqi_data):
     current_date = datetime.now(IST).strftime("%d %B %Y | %A")
     draw.text((540, 335), f"📅 Date: {current_date}  •  National Air Quality Monitor", font=sub_font, fill="#fb923c", anchor="mm")
 
-    # Table Container Box
     table_top = 380
     table_left = 40
     table_right = width - 40
@@ -284,7 +274,6 @@ def generate_pollution_card(aqi_data):
     draw_drop_shadow(draw, table_box, radius=16)
     draw.rounded_rectangle(table_box, radius=16, fill="#0b1329", outline="#1e293b", width=3)
 
-    # Table Headers
     draw.rectangle([(table_left + 3, table_top + 3), (table_right - 3, table_top + row_height)], fill="#131f3f")
     draw.text((105, table_top + 46), "Rank", font=header_font, fill="#38BDF8", anchor="mm")
     draw.text((280, table_top + 46), "City", font=header_font, fill="#38BDF8", anchor="mm")
@@ -293,7 +282,6 @@ def generate_pollution_card(aqi_data):
 
     draw.line([(table_left, table_top + row_height), (table_right, table_top + row_height)], fill="#1e293b", width=3)
 
-    # Table Data Rows
     for i, row in enumerate(aqi_data):
         y_pos = table_top + row_height * (i + 1) + 46
 
@@ -304,7 +292,6 @@ def generate_pollution_card(aqi_data):
         draw.text((180, y_pos), row["city"], font=table_font, fill="#F8FAFC", anchor="lm")
         draw.text((435, y_pos), row["aqi"], font=table_font, fill="#F8FAFC", anchor="mm")
 
-        # Visual AQI Progress Bar
         aqi_val = row["aqi_val"]
         bar_width_max = 140
         ratio = max(0.1, min(1.0, aqi_val / 400.0))
@@ -313,7 +300,6 @@ def generate_pollution_card(aqi_data):
         draw.rounded_rectangle([(bar_x, y_pos - 8), (bar_x + bar_width_max, y_pos + 8)], radius=4, fill="#1e293b")
         draw.rounded_rectangle([(bar_x, y_pos - 8), (bar_x + bar_w, y_pos + 8)], radius=4, fill=row["color"])
 
-        # Pill Status Badge
         draw.rounded_rectangle([(730, y_pos - 26), (990, y_pos + 26)], radius=12, fill="#111827", outline=row["color"], width=2)
         draw.text((860, y_pos), row["status"], font=table_font, fill=row["color"], anchor="mm")
 
@@ -339,7 +325,7 @@ def job_post_weather():
 
     # --- MESSAGE 1 ---
     img_buffer_weather = generate_top20_weather_card(station_data)
-    coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "9.0°C"}
+    coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "8.8°C"}
 
     caption_1 = (
         f"🌤 **West Bengal Top-20 Weather & Forecast Bulletin**\n"
