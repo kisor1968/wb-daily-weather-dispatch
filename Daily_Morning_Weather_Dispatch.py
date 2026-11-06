@@ -1,13 +1,14 @@
 import os
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
-IST = timezone(timedelta(hours=5, minutes=30)) 
-current_date = datetime.now(IST).strftime("%d %B %Y | %A")
 import time
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageFont
 import schedule
+
+# --- TIMEZONE CONFIGURATION ---
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # --- CONFIGURATION ---
 TELEGRAM_BOT_TOKEN = "9226159358:AAF6cTSJSKCvm9UDCx0Ay8DvxO3svO6mVDQ"
@@ -177,7 +178,7 @@ def generate_top20_weather_card(station_data):
     draw.rounded_rectangle(sub_box, radius=12, fill="#1e3a8a", outline="#60a5fa", width=2)
     draw.text((540, 250), "WEST BENGAL TOP-20 MINIMUM TEMPERATURES & OUTLOOK", font=header_font, fill="#F8FAFC", anchor="mm")
 
-    current_date = datetime.now().strftime("%d %B %Y | %A")
+    current_date = datetime.now(IST).strftime("%d %B %Y | %A")
     draw.text((540, 335), f"📅 Date: {current_date}  •  Source: IMD Kolkata", font=sub_font, fill="#38bdf8", anchor="mm")
 
     # Table Container Box
@@ -257,7 +258,7 @@ def generate_pollution_card(aqi_data):
     draw.rounded_rectangle(sub_box, radius=12, fill="#7c2d12", outline="#ea580c", width=2)
     draw.text((540, 250), "AIR QUALITY INDEX (AQI) — TOP 10 INDIAN CITIES", font=header_font, fill="#F8FAFC", anchor="mm")
 
-    current_date = datetime.now().strftime("%d %B %Y | %A")
+    current_date = datetime.now(IST).strftime("%d %B %Y | %A")
     draw.text((540, 335), f"📅 Date: {current_date}  •  National Air Quality Monitor", font=sub_font, fill="#fb923c", anchor="mm")
 
     # Table Container Box
@@ -318,7 +319,7 @@ def generate_pollution_card(aqi_data):
 
 def job_post_weather():
     """Main dispatch routine."""
-    print(f"[{datetime.now()}] Starting automated dispatch...")
+    print(f"[{datetime.now(IST)}] Starting automated dispatch...")
     station_data = fetch_imd_top20_data()
     aqi_data = fetch_indian_cities_aqi()
 
@@ -331,7 +332,7 @@ def job_post_weather():
     caption_1 = (
         f"🌤 **West Bengal Top-20 Weather & Forecast Bulletin**\n"
         f"🏛 *Prabhu Jagatbandhu College – Dept. of Science & Meteorology*\n"
-        f"📅 Date: {datetime.now().strftime('%d %B %Y')}\n\n"
+        f"📅 Date: {datetime.now(IST).strftime('%d %B %Y')}\n\n"
         f"❄️ **Coldest Station:** {coldest['station']} ({coldest['temp']})\n\n"
         f"_Source: India Meteorological Department (IMD Kolkata)_"
     )
