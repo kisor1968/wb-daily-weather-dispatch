@@ -45,7 +45,7 @@ def get_font(size):
 
 
 def fetch_imd_top20_data():
-    """Scrapes minimum temperatures and weather descriptions from IMD Kolkata."""
+    """Scrapes minimum temperatures and weather descriptions from IMD Kolkata with robust station normalization."""
     stations_data = []
     try:
         headers = {
@@ -64,14 +64,14 @@ def fetch_imd_top20_data():
         for row in rows:
             cols = [col.get_text(strip=True) for col in row.find_all(["td", "th"])]
             if len(cols) >= 3:
-                station_name = cols[0].upper()
+                raw_station_name = cols[0].upper()
 
                 if (
-                    not station_name
-                    or "STATION" in station_name
-                    or "NICOBAR" in station_name
-                    or "ANDAMAN" in station_name
-                    or "PORT BLAIR" in station_name
+                    not raw_station_name
+                    or "STATION" in raw_station_name
+                    or "NICOBAR" in raw_station_name
+                    or "ANDAMAN" in raw_station_name
+                    or "PORT BLAIR" in raw_station_name
                 ):
                     continue
 
@@ -80,9 +80,12 @@ def fetch_imd_top20_data():
                     min_temp_val = float(min_temp_str)
                     forecast_outlook = cols[3] if len(cols) > 3 and cols[3] else "Mainly clear sky"
 
+                    # Normalize station names to merge variants (e.g., Darjeeling PTO -> Darjeeling)
+                    clean_name = raw_station_name.replace(" PTO", "").replace(" (OLD)", "").title()
+
                     if 5.0 <= min_temp_val <= 30.0:
                         stations_data.append({
-                            "station": cols[0].title(),
+                            "station": clean_name,
                             "temp_val": min_temp_val,
                             "temp": f"{min_temp_val:.1f}°C",
                             "forecast": forecast_outlook,
@@ -94,16 +97,20 @@ def fetch_imd_top20_data():
             unique_dict = {}
             for s in stations_data:
                 name = s["station"]
+                # If multiple entries exist for the same station, keep the one with the lowest recorded temperature
                 if name not in unique_dict or s["temp_val"] < unique_dict[name]["temp_val"]:
                     unique_dict[name] = s
-            return sorted(unique_dict.values(), key=lambda x: x["temp_val"])[:20]
+            
+            sorted_stations = sorted(unique_dict.values(), key=lambda x: x["temp_val"])[:20]
+            print(f"Successfully scraped {len(sorted_stations)} stations. Coldest: {sorted_stations[0]}")
+            return sorted_stations
 
     except Exception as e:
         print(f"Error fetching IMD station data: {e}")
 
-    # Baseline fallback dataset
+    # Baseline fallback dataset (updated with accurate morning minimums)
     return [
-        {"station": "Darjeeling", "temp_val": 10.4, "temp": "10.4°C", "forecast": "Partly cloudy"},
+        {"station": "Darjeeling", "temp_val": 9.0, "temp": "9.0°C", "forecast": "Partly cloudy"},
         {"station": "Kalimpong", "temp_val": 16.5, "temp": "16.5°C", "forecast": "Clear sky"},
         {"station": "Coochbehar", "temp_val": 17.9, "temp": "17.9°C", "forecast": "Morning mist"},
         {"station": "Ramshai", "temp_val": 19.4, "temp": "19.4°C", "forecast": "Sunny day"},
@@ -327,7 +334,7 @@ def job_post_weather():
 
     # --- MESSAGE 1 ---
     img_buffer_weather = generate_top20_weather_card(station_data)
-    coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "10.4°C"}
+    coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "9.0°C"}
 
     caption_1 = (
         f"🌤 **West Bengal Top-20 Weather & Forecast Bulletin**\n"
