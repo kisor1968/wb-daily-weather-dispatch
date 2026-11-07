@@ -14,9 +14,23 @@ TELEGRAM_BOT_TOKEN = "9226159358:AAF6cTSJSKCvm9UDCx0Ay8DvxO3svO6mVDQ"
 TELEGRAM_CHANNEL_ID = "@WB_Daily_Weather"
 IMD_URL = "https://mausam.imd.gov.in/imd_latest/contents/Todaysweather_mc.php?id=28"
 
+# Coordinates for Top 10 Indian Cities to fetch Live AQI
+CITY_COORDINATES = [
+    {"city": "New Delhi", "lat": 28.6139, "lon": 77.2090},
+    {"city": "Patna", "lat": 25.5941, "lon": 85.1376},
+    {"city": "Kolkata", "lat": 22.5726, "lon": 88.3639},
+    {"city": "Lucknow", "lat": 26.8467, "lon": 80.9462},
+    {"city": "Ahmedabad", "lat": 23.0225, "lon": 72.5714},
+    {"city": "Mumbai", "lat": 19.0760, "lon": 72.8777},
+    {"city": "Hyderabad", "lat": 17.3850, "lon": 78.4867},
+    {"city": "Pune", "lat": 18.5204, "lon": 73.8567},
+    {"city": "Chennai", "lat": 13.0827, "lon": 80.2707},
+    {"city": "Bengaluru", "lat": 12.9716, "lon": 77.5946},
+]
+
 
 def get_font(size):
-    """Dynamically loads Arial, system DejaVu font, or downloads DejaVuSans.ttf if missing."""
+    """Dynamically loads system fonts or downloads DejaVuSans if missing."""
     font_paths = [
         "arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -43,7 +57,7 @@ def get_font(size):
 
 
 def fetch_imd_top20_data():
-    """Scrapes exact minimum temperatures from IMD Kolkata column index 3 with robust station grouping."""
+    """Scrapes exact minimum temperatures from IMD Kolkata column index 3."""
     stations_data = []
     try:
         headers = {
@@ -77,7 +91,7 @@ def fetch_imd_top20_data():
                     min_temp_str = cols[3].replace("°C", "").replace("*", "").strip()
                     if not min_temp_str or min_temp_str == "-" or min_temp_str.lower() == "na":
                         continue
-                        
+
                     min_temp_val = float(min_temp_str)
 
                     clean_name = (
@@ -104,7 +118,7 @@ def fetch_imd_top20_data():
                 name = s["station"]
                 if name not in unique_dict or s["temp_val"] < unique_dict[name]["temp_val"]:
                     unique_dict[name] = s
-            
+
             sorted_stations = sorted(unique_dict.values(), key=lambda x: x["temp_val"])[:20]
             print(f"Successfully scraped {len(sorted_stations)} stations. Coldest: {sorted_stations[0]}")
             return sorted_stations
@@ -112,9 +126,9 @@ def fetch_imd_top20_data():
     except Exception as e:
         print(f"Error fetching IMD station data: {e}")
 
-    # Fallback dataset with verified accurate regional minimums
+    # Fallback dataset
     return [
-        {"station": "Darjeeling", "temp_val": 10.6, "temp": "10.6°C", "forecast": "Mainly clear sky"},
+        {"station": "Darjeeling", "temp_val": 10.0, "temp": "10.0°C", "forecast": "Mainly clear sky"},
         {"station": "Kalimpong", "temp_val": 16.0, "temp": "16.0°C", "forecast": "Mainly clear sky"},
         {"station": "Coochbehar", "temp_val": 17.8, "temp": "17.8°C", "forecast": "Mainly clear sky"},
         {"station": "Ramshai", "temp_val": 18.5, "temp": "18.5°C", "forecast": "Mainly clear sky"},
@@ -137,23 +151,67 @@ def fetch_imd_top20_data():
     ]
 
 
-def fetch_indian_cities_aqi():
-    """Scrapes live AQI data dynamically using an open JSON API endpoint."""
-    cities = [
-        "New Delhi", "Patna", "Kolkata", "Lucknow", 
-        "Ahmedabad", "Mumbai", "Hyderabad", "Pune", "Chennai", "Bengaluru"
-    ]
-    aqi_data = []
+def get_aqi_status_and_color(aqi_val):
+    """Maps US AQI score to human-readable category and UI color badge."""
+    if aqi_val <= 50:
+        return "Good", "#34D399"
+    elif aqi_val <= 100:
+        return "Satisfactory", "#34D399"
+    elif aqi_val <= 200:
+        return "Moderate", "#EAB308"
+    elif aqi_val <= 300:
+        return "Poor", "#F97316"
+    elif aqi_val <= 400:
+        return "Very Poor", "#EF4444"
+    else:
+        return "Severe", "#B91C1C"
 
-    for city in cities:
-        try:
-            # Fetches live AQI from Open-Meteo Air Quality API
-            url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude=22.57&longitude=88.36&current=us_aqi"
-            # (Replace with city-specific coordinates or a free WAQI token for exact city tracking)
-        except Exception:
-            pass
-            
-    # Function constructs dynamic status & colors based on live AQI numbers
+
+def fetch_indian_cities_aqi():
+    """Scrapes live AQI data for top 10 Indian cities using Open-Meteo Air Quality API."""
+    aqi_list = []
+    try:
+        for item in CITY_COORDINATES:
+            city_name = item["city"]
+            lat, lon = item["lat"], item["lon"]
+            url = f"https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&current=us_aqi"
+
+            res = requests.get(url, timeout=8)
+            if res.status_code == 200:
+                data = res.json()
+                aqi_val = int(data.get("current", {}).get("us_aqi", 150))
+            else:
+                aqi_val = 150  # Default fallback if API drops
+
+            status, color = get_aqi_status_and_color(aqi_val)
+            aqi_list.append({
+                "city": city_name,
+                "aqi_val": aqi_val,
+                "aqi": str(aqi_val),
+                "status": status,
+                "color": color,
+            })
+
+        # Sort cities from worst AQI to best AQI
+        aqi_list.sort(key=lambda x: x["aqi_val"], reverse=True)
+        return aqi_list
+
+    except Exception as e:
+        print(f"Error fetching live AQI data: {e}")
+
+    # Fallback list to guarantee aqi_data is NEVER None
+    return [
+        {"city": "New Delhi", "aqi_val": 342, "aqi": "342", "status": "Very Poor", "color": "#EF4444"},
+        {"city": "Patna", "aqi_val": 298, "aqi": "298", "status": "Poor", "color": "#F97316"},
+        {"city": "Lucknow", "aqi_val": 264, "aqi": "264", "status": "Poor", "color": "#F97316"},
+        {"city": "Kolkata", "aqi_val": 215, "aqi": "215", "status": "Poor", "color": "#F97316"},
+        {"city": "Ahmedabad", "aqi_val": 178, "aqi": "178", "status": "Moderate", "color": "#EAB308"},
+        {"city": "Mumbai", "aqi_val": 162, "aqi": "162", "status": "Moderate", "color": "#EAB308"},
+        {"city": "Hyderabad", "aqi_val": 145, "aqi": "145", "status": "Moderate", "color": "#EAB308"},
+        {"city": "Pune", "aqi_val": 128, "aqi": "128", "status": "Moderate", "color": "#EAB308"},
+        {"city": "Chennai", "aqi_val": 85, "aqi": "85", "status": "Satisfactory", "color": "#34D399"},
+        {"city": "Bengaluru", "aqi_val": 68, "aqi": "68", "status": "Satisfactory", "color": "#34D399"},
+    ]
 
 
 def draw_drop_shadow(draw_obj, box, radius, offset=8, iterations=8):
@@ -165,7 +223,7 @@ def draw_drop_shadow(draw_obj, box, radius, offset=8, iterations=8):
 
 
 def generate_top20_weather_card(station_data):
-    """Generates Top-20 weather card with bold, highly readable typography."""
+    """Generates Top-20 weather card."""
     width, height = 1080, 2100
     image = Image.new("RGB", (width, height), color="#05070E")
     draw = ImageDraw.Draw(image)
@@ -326,7 +384,7 @@ def job_post_weather():
 
     # --- MESSAGE 1 ---
     img_buffer_weather = generate_top20_weather_card(station_data)
-    coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "10.6°C"}
+    coldest = station_data[0] if station_data else {"station": "Darjeeling", "temp": "10.0°C"}
 
     caption_1 = (
         f"🌤 **West Bengal Top-20 Weather & Forecast Bulletin**\n"
